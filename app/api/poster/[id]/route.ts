@@ -1,89 +1,169 @@
 import { getRawMovie } from "@/lib/movies";
+import type { Document } from "mongodb";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// A poster Telegram file_id only works with a bot authorized to retrieve that
-// particular file. This proxy never exposes the bot token or Telegram file URL.
-// Distinct X-Poster-Status values make EasyPanel/network diagnosis possible.
-function unavailable(status: string, code = 404) {
-  return new Response(null, {
-    status: code,
-    headers: { "Cache-Control": "no-store", "X-Poster-Status": status },
-  });
+// The old MovieBot (ads/main14) writes poster_filename to its static poster
+// directory. The new website can fetch via the same bot's file_id or, when
+// POSTER_SOURCE_BASE_URL is configured, via that already-hosted static image.
+const MAX_BYTES = 15 * 1024 * 1024;
+type ImageResult = { bytes: Buffer; type: string; source: "telegram" | "legacy" };
+type Attempt = { source: "telegram" | "legacy"; status: string; httpStatus?: number };
+const jsonHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
+const token = () => (process.env.TELEGRAM_POSTER_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "").trim();
+const staticBase = () => (process.env.POSTER_SOURCE_BASE_URL || "").trim();
+
+function detectRaster(bytes: Buffer): string | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "image/png";
+  if (bytes.length >= 6 && /^GIF8[79]a$/.test(bytes.toString("ascii", 0, 6))) return "image/gif";
+  if (bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return "image/webp";
+  if (bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp" && /^(avif|avis)$/.test(bytes.toString("ascii", 8, 12))) return "image/avif";
+  return null;
 }
 
-const diagnosis: Record<string, string> = {
-  "ok": "Poster is accessible. If it is not visible, clear the browser cache and verify that EasyPanel serves this deployment.",
-  "movie-not-found": "MongoDB movie ID is invalid or no longer exists.",
-  "poster-file-id-missing": "MongoDB movie has no poster_file_id. poster_msg_id and poster_filename alone cannot be downloaded using Telegram getFile.",
-  "telegram-bot-token-missing": "Set TELEGRAM_POSTER_BOT_TOKEN to the exact bot used to upload/store poster_file_id; then redeploy the EasyPanel service.",
-  "telegram-getfile-rejected": "Telegram getFile rejected this poster_file_id. The token may be invalid or from a different bot; re-upload the poster with the configured bot and store its new file_id.",
-  "invalid-file-path": "Telegram returned an unsafe file path.",
-  "telegram-image-download-failed": "Telegram supplied a file path, but the image download failed or exceeded permitted limits.",
-  "telegram-returned-non-image": "The stored Telegram file_id did not resolve to an image.",
-  "poster-proxy-error": "Telegram access failed, timed out, or the server could not fetch the poster. Inspect EasyPanel service logs and outbound HTTPS access to api.telegram.org.",
-};
+async function readRaster(response: Response): Promise<{ bytes: Buffer; type: string } | null> {
+  if (!response.ok || !response.body) return null;
+  const len = Number(response.headers.get("content-length") || 0);
+  if (len > MAX_BYTES) { await response.body.cancel(); return null; }
+  const reader = response.body.getReader();
+  const parts: Buffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BYTES) { await reader.cancel(); return null; }
+      parts.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = Buffer.concat(parts, size);
+  const type = detectRaster(bytes);
+  return type ? { bytes, type } : null;
+}
+
+async function fromTelegram(fileId: string, attempts: Attempt[]): Promise<ImageResult | null> {
+  const botToken = token();
+  if (!botToken) { attempts.push({ source: "telegram", status: "bot-token-missing" }); return null; }
+  if (!fileId) { attempts.push({ source: "telegram", status: "poster-file-id-missing" }); return null; }
+  try {
+    const meta = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
+      method: "POST",
+      body: new URLSearchParams({ file_id: fileId }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+    const result = await meta.json() as {
+      ok?: boolean; description?: string; error_code?: number;
+      result?: { file_path?: string; file_size?: number };
+    };
+    const path = result.result?.file_path || "";
+    if (!meta.ok || !result.ok || !path) {
+      attempts.push({ source: "telegram", status: meta.status === 401 || result.error_code === 401 ? "invalid-bot-token" : "getfile-rejected", httpStatus: result.error_code || meta.status });
+      return null;
+    }
+    if (path.startsWith("/") || path.split("/").includes("..") || !/^[a-zA-Z0-9_./-]+$/.test(path)) {
+      attempts.push({ source: "telegram", status: "unsafe-telegram-file-path" }); return null;
+    }
+    if ((result.result?.file_size || 0) > MAX_BYTES) {
+      attempts.push({ source: "telegram", status: "telegram-file-too-large" }); return null;
+    }
+    const imageResponse = await fetch(`https://api.telegram.org/file/bot${botToken}/${path}`, {
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000),
+    });
+    if (!imageResponse.ok) {
+      attempts.push({ source: "telegram", status: "telegram-download-failed", httpStatus: imageResponse.status }); return null;
+    }
+    const image = await readRaster(imageResponse);
+    if (!image) { attempts.push({ source: "telegram", status: "invalid-or-large-image" }); return null; }
+    attempts.push({ source: "telegram", status: "ok" });
+    return { ...image, source: "telegram" };
+  } catch (error) {
+    console.warn("Poster Telegram retrieval failed:", error instanceof Error ? error.name : "network-error");
+    attempts.push({ source: "telegram", status: "telegram-network-or-response-error" }); return null;
+  }
+}
+
+function safePosterName(movie: Document): string | null {
+  const name = typeof movie.poster_filename === "string" ? movie.poster_filename.trim() : "";
+  if (!name || name.length > 200 || name === "." || name === ".." || /[/\\\u0000-\u001f]/.test(name)) return null;
+  return name;
+}
+
+async function fromLegacy(movie: Document, attempts: Attempt[]): Promise<ImageResult | null> {
+  const base = staticBase();
+  if (!base) { attempts.push({ source: "legacy", status: "poster-source-not-configured" }); return null; }
+  const name = safePosterName(movie);
+  if (!name) { attempts.push({ source: "legacy", status: "poster-filename-missing-or-unsafe" }); return null; }
+  try {
+    const url = new URL(base.endsWith("/") ? base : base + "/");
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+      attempts.push({ source: "legacy", status: "invalid-poster-source-base-url" }); return null;
+    }
+    const imageUrl = new URL(encodeURIComponent(name), url);
+    const response = await fetch(imageUrl, {
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) {
+      attempts.push({ source: "legacy", status: "legacy-image-http-error", httpStatus: response.status }); return null;
+    }
+    const image = await readRaster(response);
+    if (!image) { attempts.push({ source: "legacy", status: "legacy-invalid-or-large-image" }); return null; }
+    attempts.push({ source: "legacy", status: "ok" });
+    return { ...image, source: "legacy" };
+  } catch (error) {
+    console.warn("Poster static fallback failed:", error instanceof Error ? error.name : "network-error");
+    attempts.push({ source: "legacy", status: "legacy-network-error" }); return null;
+  }
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const diagnostic = new URL(request.url).searchParams.has("diagnose");
+  const attempts: Attempt[] = [];
   try {
     const { id } = await params;
     const movie = await getRawMovie(id);
-    const diagnostic = new URL(request.url).searchParams.has("diagnose");
-    const report = (status: string, httpStatus = 200) => new Response(JSON.stringify({ status, message: diagnosis[status] || "Check server logs and Telegram poster configuration." }), { status: httpStatus, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-    if (!movie) return diagnostic ? report("movie-not-found", 404) : unavailable("movie-not-found");
-    const fileId = String(movie.poster_file_id || "").trim();
-    if (!fileId) return diagnostic ? report("poster-file-id-missing", 404) : unavailable("poster-file-id-missing");
-
-    // Some catalogs upload posters with a different Telegram bot than the
-    // streaming bot. The poster bot token can be configured independently.
-    const token = (process.env.TELEGRAM_POSTER_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "").trim();
-    if (!token) {
-      console.warn("Poster unavailable: set TELEGRAM_POSTER_BOT_TOKEN or TELEGRAM_BOT_TOKEN in EasyPanel");
-      return diagnostic ? report("telegram-bot-token-missing", 503) : unavailable("telegram-bot-token-missing", 503);
+    if (!movie) {
+      if (diagnostic) return Response.json({ status: "movie-not-found" }, { status: 404, headers: jsonHeaders });
+      return new Response(null, { status: 404, headers: { "Cache-Control": "no-store", "X-Poster-Status": "movie-not-found" } });
     }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    try {
-      const metadataResponse = await fetch(`https://api.telegram.org/bot${token}/getFile`, {
-        method: "POST", body: new URLSearchParams({ file_id: fileId }),
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        signal: controller.signal, cache: "no-store",
-      });
-      const metadata = await metadataResponse.json() as {
-        ok?: boolean;
-        description?: string;
-        error_code?: number;
-        result?: { file_path?: string };
-      };
-      const path = metadata.result?.file_path;
-      if (!metadataResponse.ok || !metadata.ok || !path) {
-        console.warn("Telegram poster getFile rejected:", metadata.error_code || metadataResponse.status, metadata.description || "no file path");
-        return diagnostic ? report("telegram-getfile-rejected", 502) : unavailable("telegram-getfile-rejected", 502);
-      }
-      if (path.startsWith("/") || path.split("/").includes("..")) return diagnostic ? report("invalid-file-path", 502) : unavailable("invalid-file-path", 502);
-
-      const image = await fetch(`https://api.telegram.org/file/bot${token}/${path}`, {
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      if (!image.ok || !image.body) return diagnostic ? report("telegram-image-download-failed", 502) : unavailable("telegram-image-download-failed", 502);
-      const type = (image.headers.get("content-type") || "").toLowerCase();
-      if (!type.startsWith("image/")) return diagnostic ? report("telegram-returned-non-image", 502) : unavailable("telegram-returned-non-image", 502);
-      if (diagnostic) { await image.body.cancel(); return report("ok"); }
-      return new Response(image.body, {
-        status: 200,
-        headers: {
-          "Content-Type": type,
-          "Cache-Control": "public, max-age=600, stale-while-revalidate=3600",
-          "X-Content-Type-Options": "nosniff",
-          "X-Poster-Status": "ok",
-        },
-      });
-    } finally { clearTimeout(timeout); }
+    const fileId = typeof movie.poster_file_id === "string" ? movie.poster_file_id.trim() : "";
+    const image = await fromTelegram(fileId, attempts) || await fromLegacy(movie, attempts);
+    if (diagnostic) {
+      return Response.json({
+        status: image ? "ok" : "unavailable",
+        fetchedFrom: image?.source || null,
+        hasFileId: Boolean(fileId),
+        hasFilename: Boolean(safePosterName(movie)),
+        botConfigured: Boolean(token()),
+        staticFallbackConfigured: Boolean(staticBase()),
+        attempts,
+        guidance: image ? "Poster retrieval succeeds. Refresh the website after deploying this commit."
+          : "If Telegram rejects this file ID, set POSTER_SOURCE_BASE_URL to your original MovieBot website /static/images/posters/ path, or regenerate poster_file_id using the configured bot.",
+      }, { headers: jsonHeaders });
+    }
+    if (!image) return new Response(null, {
+      status: 404,
+      headers: { "Cache-Control": "no-store", "X-Poster-Status": attempts.map(x => x.status).join(",").slice(0, 180) },
+    });
+    return new Response(new Uint8Array(image.bytes), {
+      headers: {
+        "Content-Type": image.type,
+        "Content-Length": String(image.bytes.length),
+        "Cache-Control": "public, max-age=300",
+        "X-Content-Type-Options": "nosniff",
+        "X-Poster-Status": "ok",
+        "X-Poster-Source": image.source,
+      },
+    });
   } catch (error) {
-    console.error("Telegram poster proxy failed:", error instanceof Error ? error.name : "error");
-    if (new URL(request.url).searchParams.has("diagnose")) return new Response(JSON.stringify({ status: "poster-proxy-error", message: diagnosis["poster-proxy-error"] }), { status: 503, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
-    return unavailable("poster-proxy-error", 503);
+    console.error("Poster route error:", error instanceof Error ? error.name : "unknown");
+    if (diagnostic) return Response.json({ status: "server-error", attempts }, { status: 503, headers: jsonHeaders });
+    return new Response(null, { status: 503, headers: { "Cache-Control": "no-store", "X-Poster-Status": "server-error" } });
   }
 }

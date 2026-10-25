@@ -133,6 +133,16 @@ Your MongoDB records typically contain **raw MKV**. Chrome cannot discover or sw
 
 The player selects the manifest returned by `POST /api/media/:id/:index` when the MKV HLS feature is on. It displays language choices and eligible text subtitle streams. Embedded subtitle extraction requires reading the original file and can take time; .srt/.vtt local uploads remain supported independently.
 
+## Poster fetch fix: Telegram first, legacy static as fallback
+
+The original movie upload bot in `Shivayt007/ads` branch `main14` saves poster images on its own service at `/static/images/posters/<poster_filename>` **in addition to** storing `poster_file_id` in MongoDB. The standalone Next.js website does not automatically have access to the other Docker container's local files. The poster API now attempts Telegram `getFile` first and accepts valid raster image bytes even if Telegram gives a generic content type. It accepts `TELEGRAM_POSTER_BOT_TOKEN`, `TELEGRAM_BOT_TOKEN`, or the original bot's `BOT_TOKEN` environment name.
+
+**If Telegram retrieval still fails despite using the same bot token:** configure `POSTER_SOURCE_BASE_URL` to the absolute URL of your *existing running MovieBot* static poster folder (for example `https://old-movie-site.example/static/images/posters`). The poster proxy then falls back to `<POSTER_SOURCE_BASE_URL>/<poster_filename>` without exposing credentials. The static URL must actually serve images; `poster_msg_id` alone cannot be retrieved using Bot API getFile. Alternatively, re-upload the poster with your current bot and store its new file ID.
+
+A valid `poster_filename` now also causes the UI to request the poster even for older movies with no `poster_file_id`. The API caps downloaded images to 15 MiB and allows only recognized raster image signatures.
+
+`/api/poster/MOVIE_OBJECT_ID?diagnose=1` reports `attempts` such as `getfile-rejected`, `telegram-network-or-response-error`, or `legacy-image-http-error`, and indicates which source worked. It never returns bot tokens or the stored file ID.
+
 ## Diagnose posters (no secrets disclosed)
 
 If movie images are blank, open:

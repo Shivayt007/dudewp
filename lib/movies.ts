@@ -28,7 +28,7 @@ function normalize(raw: Document): Movie {
     uploaded_at: raw.uploaded_at instanceof Date ? raw.uploaded_at.toISOString() : raw.uploaded_at ? String(raw.uploaded_at) : null,
     views: Number(raw.views) || 0,
     file_count: files.length,
-    hasPoster: Boolean(raw.poster_file_id),
+    hasPoster: Boolean(raw.poster_file_id || raw.poster_filename),
     files,
   };
 }
