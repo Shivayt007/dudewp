@@ -16,7 +16,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const url = tempUrlForFile(file);
     if (!url) return NextResponse.json({ error: "A usable stored stream_link with ?hash= is missing" }, { status: 422 });
     const isMkv = /\.mkv$/i.test(String(file.file_name || "")) || /matroska/i.test(String(file.mime_type || ""));
-    if (isMkv && mkvHlsEnabled()) {
+    // Movi reads the original container in the browser; never start a VPS conversion.
+    const browserDemux = new URL(_request.url).searchParams.get("engine") === "movi";
+    if (isMkv && !browserDemux && mkvHlsEnabled()) {
       try {
         const session = await createHlsSession(url);
         return NextResponse.json({

@@ -66,3 +66,15 @@ html,body{max-width:100%;overflow-x:clip}
   .detail-poster{height:138px}
   .detail-actions .btn{font-size:10px}
 }
+/* Movi owns playback controls, track menus, gestures and fullscreen. */
+.dude-player-stage{position:relative;aspect-ratio:16/9;background:#000;min-width:0}
+.dude-player-host,.dude-movi-player{display:block;width:100%;height:100%}
+.dude-player-host{position:absolute;inset:0}
+.dude-player-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:16px;min-width:0}
+.dude-version-picker{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--white);min-width:0;max-width:70%;flex:1}
+.dude-version-picker select{width:100%;min-width:0;min-height:44px;font:inherit;color:var(--white);background:#242634;border:1px solid #4b4e61;border-radius:6px;padding:8px 12px;text-overflow:ellipsis}
+.dude-player-actions{display:flex;gap:16px;flex-wrap:wrap}
+.dude-player-actions .inline-action{min-height:44px;font-size:12px}
+.dude-player-shell :is(button,a,select):focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.dude-player-help{font-size:13px;line-height:1.5;color:#c4c5d2;padding:0 16px 16px;margin:0}
+@media(max-width:600px){.dude-player-stage{aspect-ratio:16/10}.dude-player-toolbar{align-items:stretch;flex-direction:column;gap:8px;padding:12px}.dude-version-picker{max-width:100%}.dude-player-actions{justify-content:space-between}.dude-player-help{padding:0 12px 12px}}
