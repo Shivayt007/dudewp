@@ -13,7 +13,7 @@ type ShakaTextTrack = { id: number; language: string; active?: boolean; kind?: s
 type BrowserAudioTrack = { language?: string; label?: string; enabled: boolean };
 type BrowserAudioTracks = { length: number; [index: number]: BrowserAudioTrack };
 type BrowserVideo = HTMLVideoElement & { audioTracks?: BrowserAudioTracks };
-type AudioChoice = { key: string; label: string; language: string; nativeIndex?: number };
+type AudioChoice = { key: string; label: string; language: string; nativeIndex?: number; shakaVariantId?: number };
 type ShakaInstance = {
   attach: (video: HTMLVideoElement) => Promise<void>;
   load: (uri: string, startTime?: number, mimeType?: string) => Promise<void>;
@@ -204,9 +204,34 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     if (!element) return;
     if (player) {
       const variants = player.getVariantTracks();
-      const languages = Array.from(new Set(variants.map(item => item.language || "und")));
-      setAudioChoices(languages.map(lang => ({ key: `shaka:${lang}`, language: lang, label: languageLabel(lang) })));
-      setSelectedAudio(`shaka:${variants.find(item => item.active)?.language || languages[0] || "und"}`);
+      // HLS produced from a Telegram MKV has a video variant for each audio
+      // rendition. Pick the actual variant ID rather than only the language:
+      // two audio streams can both be tagged "und" or share a language.
+      if (hlsSession) {
+        const counts = new Map<string, number>();
+        for (const item of variants) {
+          const language = item.language || "und";
+          counts.set(language, (counts.get(language) || 0) + 1);
+        }
+        const occurrences = new Map<string, number>();
+        const choices: AudioChoice[] = variants.map(item => {
+          const language = item.language || "und";
+          const number = (occurrences.get(language) || 0) + 1;
+          occurrences.set(language, number);
+          return {
+            key: `shaka-track:${item.id}`,
+            language,
+            shakaVariantId: item.id,
+            label: `${languageLabel(language)}${(counts.get(language) || 0) > 1 ? ` · Track ${number}` : ""}`,
+          };
+        });
+        setAudioChoices(choices);
+        setSelectedAudio(`shaka-track:${variants.find(item => item.active)?.id ?? variants[0]?.id ?? ""}`);
+      } else {
+        const languages = Array.from(new Set(variants.map(item => item.language || "und")));
+        setAudioChoices(languages.map(lang => ({ key: `shaka:${lang}`, language: lang, label: languageLabel(lang) })));
+        setSelectedAudio(`shaka:${variants.find(item => item.active)?.language || languages[0] || "und"}`);
+      }
       const subtitles = player.getTextTracks();
       const nativeExternal = externalTrack.current?.track;
       const externalIndex = nativeExternal ? Array.from(element.textTracks).indexOf(nativeExternal) : -1;
@@ -234,8 +259,14 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
 
   const selectAudio = (choice: AudioChoice) => {
     const player = shaka.current;
-    if (player && choice.key.startsWith("shaka:")) player.selectAudioLanguage(choice.language);
-    else {
+    if (player && choice.shakaVariantId !== undefined) {
+      const variant = player.getVariantTracks().find(track => track.id === choice.shakaVariantId);
+      if (!variant) return;
+      // Clear buffered data so the selected audio is heard without a long delay.
+      player.selectVariantTrack(variant, true);
+    } else if (player && choice.key.startsWith("shaka:")) {
+      player.selectAudioLanguage(choice.language);
+    } else {
       const native = (video.current as BrowserVideo | null)?.audioTracks;
       if (!native || choice.nativeIndex === undefined) return;
       for (let i = 0; i < native.length; i++) native[i].enabled = i === choice.nativeIndex;
