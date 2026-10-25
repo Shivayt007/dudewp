@@ -5,6 +5,7 @@ import { AlertTriangle, Download, LoaderCircle, RefreshCw } from "lucide-react";
 import type { MoviElement } from "movi-player/element";
 import type { Movie } from "@/lib/models";
 import { createMovi, loadMovi, MOVI_ASSETS } from "@/lib/movi-loader";
+import { choosePlaybackSource } from "@/lib/playback-source";
 
 export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Movie; initialIndex?: number }) {
   const host = useRef<HTMLDivElement>(null);
@@ -62,6 +63,9 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Temporary link unavailable");
         if (typeof result.url !== "string" || !/^https?:\/\//i.test(result.url)) throw new Error("The server did not return a valid streaming link.");
+        const playbackUrl = file.playableHint === "manifest" ? result.url : await choosePlaybackSource(
+          result.url, `/api/stream/${movie.id}/${fileIndex}`, controller.signal,
+        );
         if (controller.signal.aborted) return;
 
         element = createMovi();
@@ -85,7 +89,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
         // Configure the WASM URL before connection. Source is assigned last so
         // metadata events cannot race the resume and view-count listeners.
         container.appendChild(element);
-        element.src = result.url;
+        element.src = playbackUrl;
         setLoading(false);
       } catch (cause) {
         if (controller.signal.aborted) return;
