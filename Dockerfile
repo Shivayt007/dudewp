@@ -12,7 +12,11 @@ RUN npm run build
 
 FROM node:22-alpine AS runner
 # Needed only when ENABLE_MKV_HLS=true. FFmpeg remuxes/transcodes MKV and extracts subtitles.
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg \
+    && test -x /usr/bin/ffmpeg \
+    && test -x /usr/bin/ffprobe \
+    && ffmpeg -hide_banner -version > /dev/null \
+    && ffprobe -hide_banner -version > /dev/null
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
