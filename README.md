@@ -6,11 +6,11 @@ A responsive Next.js 16 / React 19 / TypeScript movie catalog with a custom play
 
 - Home catalog with featured movie, latest/popular/title sort, title search, language filters and pagination
 - Movie pages with title, language, description, poster, view count, and all `files[]` variants
-- Dedicated theater watch page with quality/version picker, play/pause, ±10 sec seeking, timeline, volume, playback speed, keyboard shortcuts, double-click left/right skipping, fullscreen, PiP, .srt/.vtt external subtitle picker, resume position, link refresh and download
+- Dedicated theater watch page with quality/version picker, play/pause, ±10 sec seeking, timeline, volume, audio language selection where supported, left-side vertical swipe for video-only brightness, right-side vertical swipe for volume where allowed by the browser, playback speed, keyboard shortcuts, double-click left/right skipping, fullscreen, PiP, .srt/.vtt external subtitle picker, resume position, link refresh and download
 - Uses direct native `<video>` for progressive MP4/WebM; Shaka Player for `.m3u8`/`.mpd` HLS/DASH inputs
 - `POST /api/media/:movieId/:fileIndex` creates a new signed URL only when playback starts/refreshes, using the **supplied Python `temp_links.py` reference format**
 - `GET /api/download/:movieId/:fileIndex` creates a fresh signed URL and redirects without transferring GBs through Next.js
-- `GET /api/poster/:movieId` uses `TELEGRAM_BOT_TOKEN` (optional) to fetch the Telegram `poster_file_id` securely; shows attractive poster fallback otherwise
+- `GET /api/poster/:movieId` uses `TELEGRAM_POSTER_BOT_TOKEN` (preferred) or `TELEGRAM_BOT_TOKEN` to fetch the Telegram `poster_file_id` securely; shows attractive poster fallback otherwise
 - `GET /api/movies`, `GET /api/health`, `POST /api/views/:movieId`
 - Secrets never returned in HTML, lists, or client bundles
 - Dockerfile with standalone output for deployment on EasyPanel / Docker / VPS
@@ -27,7 +27,8 @@ MONGODB_COLLECTION=movies
 TEMP_LINK_SECRET=YOUR_DEPLOYED_TGLINK_SIGNING_SECRET
 TEMP_LINK_BASE_URL=https://telegram.tglink.space
 TEMP_LINK_EXPIRY_SECONDS=5600
-TELEGRAM_BOT_TOKEN=optional_bot_token
+TELEGRAM_POSTER_BOT_TOKEN=poster_uploading_bot_token
+TELEGRAM_BOT_TOKEN=optional_fallback_bot_token
 ```
 
 `MONGODB_DB` and `MONGODB_COLLECTION` must match **your actual existing names**. The demo `movie_wallet` is only an example. If your URI password has `@`, `#`, or other reserved characters, percent-encode them. Keep MongoDB and bot tokens strictly server-side. Never use `NEXT_PUBLIC_` for secrets.
@@ -110,9 +111,9 @@ The token fields, in Python JSON formatting, are `file_id`, `exp`, `salt`. Signi
 - **MKV is not generally browser-playable.** A link ending with `.mkv` does not become MP4 simply by attaching a player. If it contains unsupported codecs/audio/video, an Android native player may play it but Chrome/Safari browser playback may fail. Use MP4 (H.264 video + AAC audio) or properly packaged HLS/DASH from your source provider for reliable browser playback. You can still offer MKV download.
 - URL signing alone does **not** guarantee successful playback: TgLink needs proper `Content-Type`, HTTP `206 Partial Content` / `Range` seeking, CORS for Shaka HLS/DASH, and the file must have supported codecs. Direct `<video>` downloads may play cross-origin even without CORS if the browser allows the source.
 - Shaka provides adaptive quality **only** when the underlying stream provides different bitrates in an HLS/DASH manifest. Separate 720p and 1080p MongoDB `files[]` appear as manual versions, not auto-switch quality.
-- A browser cannot natively read every embedded MKV subtitle/audio track. External subtitles (`.srt` and `.vtt`) work with supported video sources; selectable embedded tracks require properly supported formats and/or transcoding.
+- A browser cannot natively read every embedded MKV subtitle/audio track. External subtitles (`.srt` and `.vtt`) work with supported video sources; selectable embedded tracks require properly supported formats and/or transcoding. The audio menu lists Shaka HLS/DASH audio languages or native browser `audioTracks` if available. A browser cannot be forced to switch embedded MKV audio tracks that it does not expose. Brightness gestures change only the rendered video brightness, not the phone display backlight; mobile browsers may restrict software volume. No transcoding is implemented.
 - `download` redirects to TgLink. The TgLink server controls `Content-Disposition`, so the remote file might open in-browser instead of forcibly downloading.
-- Telegram poster proxy requires a valid bot token that can retrieve the stored `poster_file_id`. It does **not** fetch by `poster_msg_id` (Telegram Bot API `getFile` accepts a file ID, not an arbitrary message ID).
+- Telegram poster proxy requires a valid bot token that can retrieve the stored `poster_file_id`. Set `TELEGRAM_POSTER_BOT_TOKEN` to the poster-uploading bot token in EasyPanel, or `TELEGRAM_BOT_TOKEN` as a fallback. Open `/api/poster/YOUR_MOVIE_OBJECT_ID` in browser DevTools and read the `X-Poster-Status` response header (`telegram-bot-token-missing`, `telegram-getfile-rejected`, `ok`, etc.). Failure responses use `Cache-Control: no-store` so configuration fixes can be retested immediately. If getFile rejects the ID, verify the bot used to upload the original poster, or reupload and save a new `poster_file_id`. It does **not** fetch by `poster_msg_id` (Telegram Bot API `getFile` accepts a file ID, not an arbitrary message ID).
 - No transcoding, DRM licensing, user accounts, or transcoding queue is included in this release.
 
 ## 6. Production security checklist
@@ -135,3 +136,9 @@ The initial build is a functional **public catalog**. For a private catalog, add
 ## Build verification
 
 The included `npm run test:links` checks the source URL parser, field extraction, token signature, expiration, fresh salts, and refusal of foreign hosts. It does not claim to have reached the real TgLink service. Run `npm run build` after dependencies install to confirm your environment's Next.js version and then test real playback with your MongoDB/TgLink data.
+
+## Mobile fixes and deployment verification
+
+- Long source names now wrap inside compact source rows. Watch, Download and movie details cards fit small Android viewport widths. Player controls are compact on mobile, with video versions also reachable under player Settings.
+- **Vertical swipe left half** adjusts the rendered video brightness; **vertical swipe right half** adjusts the HTML video volume where allowed. Use the Audio and Subtitle menus to choose available native/manifest tracks; subtitle upload supports `.srt`/`.vtt`.
+- If your deployed movie page shows **My watchlist**, **Available sources**, or **Rate this title**, it is not the page served by this GitHub `main` branch. Check the EasyPanel service Git repository, branch, deploy status, domain and browser cache before assessing this update.
