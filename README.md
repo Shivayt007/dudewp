@@ -116,6 +116,27 @@ The token fields, in Python JSON formatting, are `file_id`, `exp`, `salt`. Signi
 - Telegram poster proxy requires a valid bot token that can retrieve the stored `poster_file_id`. Set `TELEGRAM_POSTER_BOT_TOKEN` to the poster-uploading bot token in EasyPanel, or `TELEGRAM_BOT_TOKEN` as a fallback. Open `/api/poster/YOUR_MOVIE_OBJECT_ID` in browser DevTools and read the `X-Poster-Status` response header (`telegram-bot-token-missing`, `telegram-getfile-rejected`, `ok`, etc.). Failure responses use `Cache-Control: no-store` so configuration fixes can be retested immediately. If getFile rejects the ID, verify the bot used to upload the original poster, or reupload and save a new `poster_file_id`. It does **not** fetch by `poster_msg_id` (Telegram Bot API `getFile` accepts a file ID, not an arbitrary message ID).
 - No transcoding, DRM licensing, user accounts, or transcoding queue is included in this release.
 
+
+## Optional VLC-style track switching for MKV via FFmpeg HLS (requires redeploy)
+
+Your MongoDB records typically contain **raw MKV**. Chrome cannot discover or switch arbitrary embedded MKV tracks through the HTML `<video>` element. The website now includes an **opt-in server-side FFmpeg bridge** that remuxes compatible H.264 video (or transcodes unsupported video codecs) and exposes up to six embedded audio languages as separate HLS tracks for Shaka Player. Text-based embedded subtitles (SRT/ASS/WebVTT etc.) can be extracted on demand into WebVTT. Image-based PGS/VobSub tracks are not convertible by this implementation. No MongoDB data is changed.
+
+**To activate:** in EasyPanel → `website` → Environment add `ENABLE_MKV_HLS=true`, then redeploy the updated `main` Dockerfile; it installs `ffmpeg`/`ffprobe` in the runtime image. Without this flag, raw MKV continues through the original direct-link path and embedded audio switching may be unavailable. Browser-based HLS audio switching requires the source to supply multiple audio tracks.
+
+**Resource and streaming limitations:** this is a best-effort **single-process, single-replica** bridge, capped at one active transcoding session on the VPS. It may be CPU intensive and use significant disk space in `/tmp/dude-hls`, especially for lengthy movies or HEVC videos. Sessions are ephemeral, capped at three hours and removed after 20 minutes of inactivity; seeking beyond already-generated HLS segments may not work. Media with external delivery restrictions, expired signed source links, invalid Range support, or incompatible codecs can still fail. It is not a production-ready multi-user transcoding service. For a larger audience, run a separately scalable transcoding/HLS worker with persistent caching and user authorization/rate limiting.
+
+The player selects the manifest returned by `POST /api/media/:id/:index` when the MKV HLS feature is on. It displays language choices and eligible text subtitle streams. Embedded subtitle extraction requires reading the original file and can take time; .srt/.vtt local uploads remain supported independently.
+
+## Diagnose posters (no secrets disclosed)
+
+If movie images are blank, open:
+
+```text
+https://YOUR_WEBSITE_DOMAIN/api/poster/MOVIE_OBJECT_ID?diagnose=1
+```
+
+The response is JSON with `status` and a useful message. For `telegram-bot-token-missing`, set `TELEGRAM_POSTER_BOT_TOKEN` in EasyPanel. For `telegram-getfile-rejected`, the stored `poster_file_id` is not accessible using this bot; use the original uploading bot's token or re-upload the image and update `poster_file_id`. A `poster_msg_id` alone is not sufficient for Telegram Bot API `getFile`. The endpoint never exposes the token itself.
+
 ## 6. Production security checklist
 
 The initial build is a functional **public catalog**. For a private catalog, add authentication/authorization to both page routes **and** streaming/download APIs before exposing it publicly. Also implement rate limiting on stream signing, download redirects, view increment and poster requests. Restrict MongoDB database credentials to the minimum required read + `views` update privilege; rotate any signing secret previously exposed in public code in coordination with the deployed TgLink verifier. Only distribute media you have permission to publish.

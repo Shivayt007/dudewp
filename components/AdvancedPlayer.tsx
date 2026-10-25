@@ -28,6 +28,13 @@ type ShakaInstance = {
 };
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const LANGUAGE_NAMES: Record<string, string> = {
+  tam: "Tamil", ta: "Tamil", eng: "English", en: "English", hin: "Hindi", hi: "Hindi",
+  tel: "Telugu", te: "Telugu", mal: "Malayalam", ml: "Malayalam", kan: "Kannada", kn: "Kannada",
+  jap: "Japanese", ja: "Japanese", fre: "French", fra: "French", und: "Original audio",
+};
+const languageLabel = (value: string) => LANGUAGE_NAMES[value.toLowerCase()] || value.toUpperCase();
+type EmbeddedSubtitle = { index: number; label: string; language: string };
 function clock(value: number) {
   if (!Number.isFinite(value) || value < 0) return "0:00";
   const time = Math.floor(value);
@@ -49,6 +56,10 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
   const [fileIndex, setFileIndex] = useState(initialIndex);
   const file = movie.files[fileIndex];
   const [source, setSource] = useState("");
+  const [isManifest, setIsManifest] = useState(false);
+  const [hlsSession, setHlsSession] = useState("");
+  const [embeddedSubtitles, setEmbeddedSubtitles] = useState<EmbeddedSubtitle[]>([]);
+  const [subtitleNotice, setSubtitleNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [buffering, setBuffering] = useState(false);
   const [error, setError] = useState("");
@@ -103,7 +114,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     if (subtitleObjectUrl.current) { URL.revokeObjectURL(subtitleObjectUrl.current); subtitleObjectUrl.current = null; }
     const controller = new AbortController();
     sourceFetch.current = controller;
-    setSource(""); setLoading(true); setError(""); setElapsed(0); setDuration(0); setPlaying(false);
+    setSource(""); setIsManifest(false); setHlsSession(""); setEmbeddedSubtitles([]); setSubtitleNotice(""); setLoading(true); setError(""); setElapsed(0); setDuration(0); setPlaying(false);
     setPanel("none"); setQuality("auto"); setTracks([]); setCaptions(false); setAudioChoices([]); setSelectedAudio(""); setTextChoices([]); setSelectedText("off");
     if (!file) { setError("There are no video files for this title."); setLoading(false); return; }
     (async () => {
@@ -111,7 +122,12 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
         const res = await fetch(`/api/media/${movie.id}/${fileIndex}`, { method: "POST", signal: controller.signal, cache: "no-store" });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error || "Temporary link unavailable");
-        if (!controller.signal.aborted) setSource(result.url);
+        if (!controller.signal.aborted) {
+          setIsManifest(result.streamingType === "manifest" || file.playableHint === "manifest");
+          setHlsSession(typeof result.hlsSession === "string" ? result.hlsSession : "");
+          setEmbeddedSubtitles(Array.isArray(result.embeddedSubtitles) ? result.embeddedSubtitles : []);
+          setSource(result.url);
+        }
       } catch (err) {
         if (!controller.signal.aborted) { setError(err instanceof Error ? err.message : "Unable to obtain video link"); setLoading(false); }
       }
@@ -125,7 +141,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     let disposed = false;
     let instance: ShakaInstance | null = null;
     const load = async () => {
-      if (file.playableHint === "manifest") {
+      if (isManifest) {
         try {
           const module = await import("shaka-player/dist/shaka-player.compiled.js");
           if (disposed) return;
@@ -160,7 +176,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
       element.pause(); element.removeAttribute("src"); element.load();
       if (instance) { void instance.destroy().catch(() => {}); if (shaka.current === instance) shaka.current = null; }
     };
-  }, [source, file]);
+  }, [source, file, isManifest]);
 
   useEffect(() => {
     const onFullScreen = () => setFullscreen(Boolean(document.fullscreenElement));
@@ -181,7 +197,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     } catch { /* Storage may be disabled */ }
   }, [fileIndex, movie.id, source]);
 
-  // Browsers expose multi-audio either via Shaka manifest tracks or the optional
+  // Browsers expose multi-audio either via our FFmpeg HLS manifest, other Shaka manifests, or the optional
   // native audioTracks API (not available in most Chrome/Android MKV combinations).
   const readTracks = (player: ShakaInstance | null = shaka.current) => {
     const element = video.current as BrowserVideo | null;
@@ -189,13 +205,14 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     if (player) {
       const variants = player.getVariantTracks();
       const languages = Array.from(new Set(variants.map(item => item.language || "und")));
-      setAudioChoices(languages.map(lang => ({ key: `shaka:${lang}`, language: lang, label: lang === "und" ? "Original audio" : lang.toUpperCase() })));
+      setAudioChoices(languages.map(lang => ({ key: `shaka:${lang}`, language: lang, label: languageLabel(lang) })));
       setSelectedAudio(`shaka:${variants.find(item => item.active)?.language || languages[0] || "und"}`);
       const subtitles = player.getTextTracks();
       const nativeExternal = externalTrack.current?.track;
       const externalIndex = nativeExternal ? Array.from(element.textTracks).indexOf(nativeExternal) : -1;
       setTextChoices([
-        ...subtitles.map(item => ({ key: `shaka:${item.id}`, label: `${item.language || "Unknown"}${item.kind ? ` · ${item.kind}` : ""}`, shakaId: item.id })),
+        ...subtitles.map(item => ({ key: `shaka:${item.id}`, label: `${languageLabel(item.language || "und")}${item.kind ? ` · ${item.kind}` : ""}`, shakaId: item.id })),
+        ...embeddedSubtitles.map(item => ({ key: `server:${item.index}`, label: `${languageLabel(item.language)} · ${item.label}` })),
         ...(externalIndex >= 0 ? [{ key: `native:${externalIndex}`, label: externalTrack.current?.label || "External subtitle", nativeIndex: externalIndex }] : []),
       ]);
       setSelectedText(subtitles.find(item => item.active) ? `shaka:${subtitles.find(item => item.active)?.id}` : "off");
@@ -227,7 +244,50 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     setPanel("none");
   };
 
+  const loadEmbeddedSubtitle = async (index: number) => {
+    if (!hlsSession || !embeddedSubtitles.some(item => item.index === index)) return;
+    setSubtitleNotice("Extracting embedded subtitles from the MKV source...");
+    try {
+      const base = `/api/hls/${hlsSession}/subtitle/${index}`;
+      await fetch(base, { method: "POST", cache: "no-store" });
+      let data: { status: string; url?: string; message?: string } = { status: "working" };
+      for (let attempt = 0; attempt < 120; attempt++) {
+        const response = await fetch(base, { cache: "no-store" });
+        data = await response.json();
+        if (data.status === "ready" || data.status === "error") break;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      if (data.status !== "ready" || !data.url) throw new Error(data.message || "Subtitle conversion exceeded its time limit.");
+      const element = video.current;
+      if (!element) return;
+      if (externalTrack.current) externalTrack.current.remove();
+      if (subtitleObjectUrl.current) { URL.revokeObjectURL(subtitleObjectUrl.current); subtitleObjectUrl.current = null; }
+      const metadata = embeddedSubtitles.find(item => item.index === index);
+      const track = document.createElement("track");
+      track.src = data.url; track.kind = "subtitles";
+      track.srclang = metadata?.language === "und" ? "en" : metadata?.language || "en";
+      track.label = metadata?.label || `Subtitle ${index + 1}`;
+      track.default = true;
+      element.appendChild(track);
+      externalTrack.current = track;
+      track.addEventListener("load", () => {
+        const all = Array.from(element.textTracks);
+        for (const item of all) item.mode = item === track.track ? "showing" : "disabled";
+        shaka.current?.setTextTrackVisibility(false);
+        setSelectedText(`server:${index}`);
+        setCaptions(true);
+        setSubtitleNotice("");
+      }, { once: true });
+      // Ensure textTracks is activated even in browsers that do not fire load on track elements.
+      track.track.mode = "showing";
+      setSelectedText(`server:${index}`);
+      setCaptions(true);
+      setPanel("none");
+      setSubtitleNotice("");
+    } catch (e) { setSubtitleNotice(e instanceof Error ? e.message : "Embedded subtitle extraction failed."); }
+  };
   const selectSubtitle = (key: string) => {
+    if (key.startsWith("server:")) { void loadEmbeddedSubtitle(Number(key.slice(7))); return; }
     const player = shaka.current;
     const element = video.current;
     if (!element) return;
@@ -395,13 +455,15 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
         {panel === "settings" && <div className="panel-options"><button onClick={() => setPanel("versions")}>Choose video version</button><div className="panel-subheading"><Gauge size={15}/> Playback speed</div><div className="speed-grid">{RATES.map(x => <button key={x} className={rate === x ? "selected-speed" : ""} onClick={() => changeRate(x)}>{x}×</button>)}</div>{tracks.length ? <><div className="panel-subheading">Quality</div><button onClick={() => changeQuality("auto")} className={quality === "auto" ? "option-active" : ""}>Auto {quality === "auto" ? "✓" : ""}</button>{tracks.filter(t => t.height).filter((v, i, a) => a.findIndex(t => t.height === v.height) === i).sort((a, b) => (b.height || 0) - (a.height || 0)).map(t => <button key={t.id} className={quality === t.id ? "option-active" : ""} onClick={() => changeQuality(t.id)}>{t.height}p {quality === t.id ? "✓" : ""}</button>)}</> : <div className="panel-note">Adaptive quality options appear for supported HLS/DASH streams.</div>}</div>}
         {panel === "audio" && <div className="panel-options">
           {audioChoices.length ? audioChoices.map(item => <button key={item.key} className={selectedAudio === item.key ? "option-active" : ""} onClick={() => selectAudio(item)}>{item.label}{selectedAudio === item.key && <Check size={16}/>}</button>) : <div className="panel-note">Audio track selection is unavailable for this source in your browser. Multi-audio works when the stream exposes selectable HLS/DASH tracks or native browser audio tracks; embedded MKV tracks may not be accessible.</div>}
+          {audioChoices.length <= 1 && <div className="panel-note">Only one audio language is exposed by this source. For MKV audio switching, enable the optional FFmpeg HLS bridge on the server.</div>}
           <div className="panel-subheading"><Sun size={15}/> Picture brightness</div><input aria-label="Video brightness" type="range" min={0.4} max={1.6} step={0.05} value={brightness} onChange={e => setBrightness(Number(e.target.value))}/>
         </div>}
         {panel === "captions" && <div className="panel-options">
           <button className={selectedText === "off" ? "option-active" : ""} onClick={() => selectSubtitle("off")}>Off{selectedText === "off" && <Check size={15}/>}</button>
           {textChoices.map(item => <button key={item.key} className={selectedText === item.key ? "option-active" : ""} onClick={() => selectSubtitle(item.key)}>{item.label}{selectedText === item.key && <Check size={15}/>}</button>)}
+          {subtitleNotice && <div className="panel-note" role="status">{subtitleNotice}</div>}
           <label className="upload-subtitle">Load .srt / .vtt file<input type="file" accept=".srt,.vtt,text/vtt" onChange={e => void uploadSubtitle(e.target.files?.[0])}/></label>
-          <div className="panel-note">Browser-supported embedded tracks appear above. MKV subtitles may require conversion. On touchscreens, swipe vertically on the left for video brightness or right for volume.</div>
+          <div className="panel-note">If MKV processing is enabled, text-based embedded MKV subtitles appear above; image-based subtitles (PGS/VobSub) cannot be automatically converted. Swipe left/right sides vertically for video brightness/volume.</div>
         </div>}
       </div> : null}
     </div>
