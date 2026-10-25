@@ -2,7 +2,7 @@ name: Import Dude Movies Next.js source
 on:
   push:
     paths:
-      - '.source-site.tar.br'
+      - '.source-parts/**'
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,10 +16,11 @@ jobs:
       - name: Extract complete website source
         shell: bash
         run: |
-          if [ -f .source-site.tar.br ]; then
-            node -e 'const fs=require("node:fs"),zlib=require("node:zlib");fs.writeFileSync("/tmp/dude-website.tar",zlib.brotliDecompressSync(fs.readFileSync(".source-site.tar.br")))'
+          if [ -f .source-parts/part-00 ] && [ -f .source-parts/part-01 ] && [ -f .source-parts/part-02 ] && [ -f .source-parts/part-03 ]; then
+            cat .source-parts/part-* | base64 -d > /tmp/dude-website.tar.br
+            node -e 'const fs=require("node:fs"),zlib=require("node:zlib");fs.writeFileSync("/tmp/dude-website.tar",zlib.brotliDecompressSync(fs.readFileSync("/tmp/dude-website.tar.br")))'
             tar -xf /tmp/dude-website.tar -C .
-            rm -f .source-site.tar.br
+            rm -rf .source-parts
           fi
       - name: Commit extracted website source
         shell: bash
