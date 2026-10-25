@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { generateTempToken, parseFileUrl, tempUrlForFile } from "../lib/temp-links.mjs";
+
+process.env.TEMP_LINK_BASE_URL = "https://telegram.tglink.space";
+process.env.TEMP_LINK_SECRET = "test-only-secret";
+const stored = "https://telegram.tglink.space/watch/4330196/Movie.1080p.mkv?hash=ABC123";
+const parsed = parseFileUrl(stored);
+assert.equal(parsed.fileId, "4330196");
+assert.equal(parsed.secureHash, "ABC123");
+const signed = tempUrlForFile({ stream_link: stored });
+assert.ok(signed.startsWith("https://telegram.tglink.space/4330196?hash=ABC123&temp_token="));
+const decoded = Buffer.from(new URL(signed).searchParams.get("temp_token").replace(/-/g, "+").replace(/_/g, "/"), "base64");
+const payload = decoded.subarray(0, -32);
+const sig = decoded.subarray(-32);
+assert.deepEqual(sig, crypto.createHmac("sha256", "test-only-secret").update(payload).digest());
+const obj = JSON.parse(payload.toString());
+assert.equal(obj.file_id, "4330196");
+assert.equal(obj.salt.length, 16);
+assert.ok(obj.exp > Date.now() / 1000 + 5500);
+assert.notEqual(generateTempToken("4330196"), generateTempToken("4330196"));
+assert.equal(tempUrlForFile({ stream_link: "https://malicious.example/watch/1/a?hash=b" }), "");
+assert.equal(tempUrlForFile({ dump_msg_id: 55, file_hash: "hash55" }).includes("/55?hash=hash55"), true);
+console.log("Temporary URL generator tests passed.");
