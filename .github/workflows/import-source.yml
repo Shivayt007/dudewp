@@ -1,0 +1,33 @@
+name: Import Dude Movies Next.js source
+on:
+  push:
+    paths:
+      - '.source-site.tar.br'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract complete website source
+        shell: bash
+        run: |
+          if [ -f .source-site.tar.br ]; then
+            node -e 'const fs=require("node:fs"),zlib=require("node:zlib");fs.writeFileSync("/tmp/dude-website.tar",zlib.brotliDecompressSync(fs.readFileSync(".source-site.tar.br")))'
+            tar -xf /tmp/dude-website.tar -C .
+            rm -f .source-site.tar.br
+          fi
+      - name: Commit extracted website source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Add complete Dude Movies Next.js website"
+            git push origin HEAD:main
+          fi
