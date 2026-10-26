@@ -72,9 +72,9 @@ Lookup order: episode `thumbnail_file_id`, episode `poster_file_id`, episode `th
 
 ## Viewing
 
-- Home: latest full episode, Season 10 catalog, title search, All / Full episodes / Promos / Highlights filters, pagination and a separate promos/highlights section.
-- Each card links to one episode detail page; captions are displayed as plain text.
-- Detail: landscape thumbnail, caption, duration, and Watch / Download actions for every available quality.
+- Home: uploaded Season 10 banner, latest episode actions, one catalog, title search and pagination. Category buttons and the separate promos/highlights section are removed.
+- Each card uses the shared Season 10 artwork and links to one episode detail page; captions are displayed as plain text.
+- Detail: shared landscape artwork, caption, duration, and Watch / Download actions for every available quality.
 - Player: quality selector with file sizes, browser multitrack audio/subtitle controls and remembered episode position shared across quality changes.
 - Existing `/movie/:id`, `/watch/:id`, `/api/poster/:id`, `/api/media/:id/:index`, `/api/stream/:id/:index` and `/api/download/:id/:index` paths are retained, scoped to the new collection. `/api/movies?kind=promo` remains as a compatibility catalog API.
 
@@ -101,3 +101,12 @@ Production playback and Telegram thumbnail retrieval require your deployed datab
 - Chromium checks at 390, 768 and 1440 pixels verified no horizontal overflow, episode/detail layouts, search, filters, menu, quality/download targets, pagination and the empty state. Screenshots used temporary test records with fallback thumbnails; these records are not included in the branch or written to your database.
 - Production Telegram thumbnails and actual audio/video decoding remain unverified without your real configured sources. The screenshot reference was followed directly; the design skill's separate inspector scripts were unavailable, so the layout was checked in Chromium instead.
 
+
+### Shared Season 10 artwork
+
+The uploaded red/gold Season 10 artwork is bundled at
+`public/images/biggboss-season-10.webp`. It is used for the top banner, every
+catalog/detail thumbnail, and the player's opening/loading preview. These
+previews do not require Telegram poster credentials or database thumbnail IDs.
+The homepage uses one upload grid with title search and pagination; category
+buttons and the separate promos/highlights section have been removed.

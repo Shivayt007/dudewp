@@ -7,3 +7,9 @@ body{font:400 16px/1.55 Arial,Helvetica,sans-serif}h1,h2,h3,strong,.brand{font-f
 /* Keep the no-thumbnail state readable in compact landscape cards. */
 .poster-fallback span{font-size:inherit;line-height:1.2}.poster-art:not(.poster-large) .poster-fallback span{display:none}
 @media(max-width:700px){.bb-hero-art .poster-fallback span,.bb-season-art strong,.bb-season-art>span{display:none}.bb-hero-art .poster-fallback,.bb-season-art{align-items:flex-end;padding-right:20px}}
+
+
+/* Uploaded artwork remains fully visible on phones and desktops. */
+.bb-banner{padding-top:16px}.bb-banner-image{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#210c08}.bb-banner-copy{display:flex;justify-content:space-between;align-items:center;gap:32px;padding-block:28px 12px;scroll-margin-top:24px}.bb-banner-copy h1{font-size:clamp(30px,4vw,48px);line-height:1.05;margin:0 0 10px}.bb-banner-subtitle{margin:0;color:var(--muted)}.bb-latest-title{margin:14px 0 0;font-size:18px;font-weight:700;overflow-wrap:anywhere}.bb-banner-actions{display:flex;flex-wrap:wrap;gap:12px;flex-shrink:0}.bb-banner+.bb-catalog{padding-top:40px}
+@media(max-width:700px){.bb-banner{padding-top:0;width:100%}.bb-banner-copy{padding:24px 16px 0;align-items:stretch;flex-direction:column;gap:20px}.bb-banner-copy h1{font-size:34px}.bb-banner-subtitle{font-size:16px}.bb-banner-actions .btn{flex:1;font-size:14px;padding:14px 12px}.bb-banner+.bb-catalog{padding-top:32px}}
+.bb-player-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}.dude-player-stage .player-overlay{background:#080b1070}

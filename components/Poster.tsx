@@ -1,7 +1,6 @@
-"use client";
-import { useState } from "react";
-import { Eye } from "lucide-react";
-export default function Poster({ id, title, large = false, hasPoster = false }: { id: string; title: string; large?: boolean; hasPoster?: boolean }) {
-  const [failed, setFailed] = useState(false);
-  return <div className={`poster-art ${large ? 'poster-large' : ''}`}>{hasPoster && !failed ? <img src={`/api/poster/${id}`} alt={`${title} thumbnail`} loading={large ? 'eager' : 'lazy'} onError={() => setFailed(true)}/> : <div className="poster-fallback"><Eye size={large ? 100 : 54} strokeWidth={1}/><span>Bigg Boss Tamil</span></div>}</div>;
+export default function Poster({ title, large = false }: { id: string; title: string; large?: boolean; hasPoster?: boolean }) {
+  return <div className={`poster-art ${large ? "poster-large" : ""}`}><img
+    src="/images/biggboss-season-10.webp" alt={`${title} — Bigg Boss Tamil Season 10`}
+    width={1536} height={864} loading={large ? "eager" : "lazy"}/></div>;
 }
+
