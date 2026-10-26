@@ -73,8 +73,8 @@ Lookup order: episode `thumbnail_file_id`, episode `poster_file_id`, episode `th
 ## Viewing
 
 - Home: uploaded Season 10 banner, latest episode actions, one catalog, title search and pagination. Category buttons and the separate promos/highlights section are removed.
-- Each card uses the shared Season 10 artwork and links to one episode detail page; captions are displayed as plain text.
-- Detail: shared landscape artwork, caption, duration, and Watch / Download actions for every available quality.
+- Each card uses the shared Season 10 artwork and opens the player directly; captions are displayed as plain text.
+- Existing `/movie/:id` links redirect to `/watch/:id`, preserving a numeric `file` query. There is no intermediate detail/quality-selection page.
 - Player: quality selector with file sizes, browser multitrack audio/subtitle controls and remembered episode position shared across quality changes.
 - Existing `/movie/:id`, `/watch/:id`, `/api/poster/:id`, `/api/media/:id/:index`, `/api/stream/:id/:index` and `/api/download/:id/:index` paths are retained, scoped to the new collection. `/api/movies?kind=promo` remains as a compatibility catalog API.
 
@@ -106,7 +106,9 @@ Production playback and Telegram thumbnail retrieval require your deployed datab
 
 The uploaded red/gold Season 10 artwork is bundled at
 `public/images/biggboss-season-10.webp`. It is used for the top banner, every
-catalog/detail thumbnail, and the player's opening/loading preview. These
+catalog thumbnail, and the player's opening/loading preview. These
 previews do not require Telegram poster credentials or database thumbnail IDs.
 The homepage uses one upload grid with title search and pagination; category
 buttons and the separate promos/highlights section have been removed.
+
+Episode cards and the latest-episode action open `/watch/:id` directly. The player contains the quality selector and download action; its back link returns to the episode list.
