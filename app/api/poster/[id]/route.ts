@@ -1,4 +1,5 @@
 import { getRawMovie } from "@/lib/movies";
+import { thumbnailFileId } from "@/lib/episode-meta.mjs";
 import type { Document } from "mongodb";
 
 export const runtime = "nodejs";
@@ -132,7 +133,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (diagnostic) return Response.json({ status: "movie-not-found" }, { status: 404, headers: jsonHeaders });
       return new Response(null, { status: 404, headers: { "Cache-Control": "no-store", "X-Poster-Status": "movie-not-found" } });
     }
-    const fileId = typeof movie.poster_file_id === "string" ? movie.poster_file_id.trim() : "";
+    const fileId = thumbnailFileId(movie);
     const image = await fromTelegram(fileId, attempts) || await fromLegacy(movie, attempts);
     if (diagnostic) {
       return Response.json({

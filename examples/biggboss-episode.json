@@ -1,0 +1,34 @@
+{
+  "season": 10,
+  "episode_key": "day-21-full",
+  "kind": "episode",
+  "day": 21,
+  "title": "Day 21 · Full Episode",
+  "caption": "Replace with the caption you want displayed on the website.",
+  "language": "Tamil",
+  "duration_seconds": 4200,
+  "thumbnail_file_id": "REPLACE_WITH_TELEGRAM_VIDEO_THUMBNAIL_FILE_ID",
+  "files": [
+    {
+      "quality": "480p",
+      "file_name": "Bigg.Boss.Tamil.S10.Day21.480p.mp4",
+      "file_size": 0,
+      "mime_type": "video/mp4",
+      "source_link": "https://telegram.tglink.space/12345?hash=REPLACE_WITH_REAL_HASH"
+    },
+    {
+      "quality": "720p",
+      "file_name": "Bigg.Boss.Tamil.S10.Day21.720p.mp4",
+      "file_size": 0,
+      "mime_type": "video/mp4",
+      "source_link": "https://telegram.tglink.space/12346?hash=REPLACE_WITH_REAL_HASH"
+    },
+    {
+      "quality": "1080p",
+      "file_name": "Bigg.Boss.Tamil.S10.Day21.1080p.mp4",
+      "file_size": 0,
+      "mime_type": "video/mp4",
+      "source_link": "https://telegram.tglink.space/12347?hash=REPLACE_WITH_REAL_HASH"
+    }
+  ]
+}

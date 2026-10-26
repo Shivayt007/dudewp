@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const sortValue = query.get("sort") || "latest";
     const sort = sortValue === "title" || sortValue === "popular" ? sortValue : "latest";
     const data = await findMovies({
+      kind: ["episode", "promo", "highlight"].includes(query.get("kind") || "") ? query.get("kind") as "episode" | "promo" | "highlight" : undefined,
       search: query.get("search") || "",
       language: query.get("language") || "",
       sort,
@@ -16,6 +17,6 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(data, { headers: { "Cache-Control": "private, max-age=15" } });
   } catch {
-    return NextResponse.json({ error: "Could not load movies" }, { status: 503 });
+    return NextResponse.json({ error: "Could not load episodes" }, { status: 503 });
   }
 }

@@ -1,3 +1,9 @@
+# Bigg Boss Tamil Season 10 branch
+
+This branch is the dedicated Season 10 site. **Start with [BIGGBOSS.md](BIGGBOSS.md)** for deployment, separate collection, video thumbnails and grouping multiple quality files into one episode. The original movie-site notes below describe the inherited player and infrastructure; use `BIGGBOSS_COLLECTION` on this branch instead of `MONGODB_COLLECTION`.
+
+---
+
 # DUDE Movies — Next.js MongoDB Streaming Website
 
 A responsive Next.js 16 / React 19 / TypeScript movie catalog with a custom player and secure, on-demand temporary TgLink URL generation. This is a **separate website application**. It connects **directly to your existing MongoDB**, so you do not need to deploy or change the Android FastAPI API for the website.

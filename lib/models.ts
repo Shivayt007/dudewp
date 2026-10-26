@@ -1,5 +1,6 @@
 export type MovieFile = {
   index: number;
+  quality: string;
   file_name: string;
   display_name: string;
   file_size: number;
@@ -11,6 +12,11 @@ export type MovieFile = {
 export type Movie = {
   id: string;
   title: string;
+  season: number;
+  day: number;
+  kind: "episode" | "promo" | "highlight";
+  caption: string;
+  duration_seconds: number;
   language: string;
   description: string;
   uploaded_at: string | null;

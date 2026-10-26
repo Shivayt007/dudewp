@@ -22,7 +22,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     const controller = new AbortController();
     let element: MoviElement | undefined;
     let lastSaved = -1;
-    const progressKey = `dude-progress:${movie.id}:${fileIndex}`;
+    const progressKey = `dude-progress:${movie.id}`;
     setLoading(true);
     setError("");
 
@@ -108,20 +108,23 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
         element.removeEventListener("loadedmetadata", onMetadata);
         element.removeEventListener("ended", onEnded);
         // dispose aborts source reads; disconnect also releases player-wide listeners.
+        try {
+          if (element.currentTime > 2 && element.currentTime < element.duration - 10) localStorage.setItem(progressKey, String(element.currentTime));
+        } catch { /* Storage may be disabled. */ }
         element.dispose();
         element.remove();
       }
     };
   }, [movie.id, movie.title, fileIndex, file, attempt]);
 
-  return <div className="player-shell dude-player-shell" aria-label="Movie video player">
+  return <div className="player-shell dude-player-shell" aria-label="Episode video player">
     <div className="dude-player-stage">
       <div ref={host} className="dude-player-host" />
       {loading && !error ? <div className="player-overlay" role="status"><LoaderCircle className="spin" size={28}/><span>Loading player and secure streaming link…</span></div> : null}
       {error ? <div className="player-error" role="alert"><AlertTriangle size={30}/><strong>Playback unavailable</strong><span>{error}</span><div className="error-actions"><button className="btn btn-primary" onClick={() => setAttempt(value => value + 1)}><RefreshCw size={16}/> Retry</button>{file && <a className="btn btn-outline" href={`/api/download/${movie.id}/${fileIndex}`} target="_blank" rel="noopener noreferrer"><Download size={16}/> Download file</a>}</div></div> : null}
     </div>
     <div className="dude-player-toolbar">
-      <label className="dude-version-picker">Video version
+      <label className="dude-version-picker">Video quality
         <select value={fileIndex} onChange={event => setFileIndex(Number(event.target.value))} disabled={!movie.files.length}>
           {movie.files.map(item => <option key={item.index} value={item.index}>{item.display_name}{item.file_size_readable ? ` · ${item.file_size_readable}` : ""}</option>)}
         </select>
