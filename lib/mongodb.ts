@@ -24,5 +24,6 @@ export async function getDatabase(): Promise<Db> {
 
 export async function getMovieCollection() {
   const db = await getDatabase();
-  return db.collection(process.env.BIGGBOSS_COLLECTION || "biggboss_episodes");
+  return db.collection(process.env.BIGGBOSS_COLLECTION?.trim() || "biggboss_episodes");
 }
+

@@ -3,7 +3,7 @@ import { ObjectId, type Document, type Sort } from "mongodb";
 import { getMovieCollection } from "./mongodb";
 import { fileFormat, formatSize, type Movie, type MovieFile } from "./models";
 
-import { qualityLabel, thumbnailFileId, SEASON } from "./episode-meta.mjs";
+import { qualityLabel, thumbnailFileId, episodeFilter, episodeDay, SEASON } from "./episode-meta.mjs";
 
 function normalize(raw: Document): Movie {
   const items = Array.isArray(raw.files) ? raw.files : [];
@@ -27,7 +27,7 @@ function normalize(raw: Document): Movie {
     id: String(raw._id),
     title: String(raw.title || "Untitled episode"),
     season: SEASON,
-    day: Math.max(0, Number(raw.day) || 0),
+    day: episodeDay(raw),
     kind: raw.kind === "promo" || raw.kind === "highlight" ? raw.kind : "episode",
     caption: String(raw.caption || raw.description || ""),
     duration_seconds: Math.max(0, Number(raw.duration_seconds) || 0),
@@ -52,8 +52,7 @@ export type MovieQuery = {
 
 export async function findMovies(input: MovieQuery = {}) {
   const collection = await getMovieCollection();
-  const filter: Document = { season: SEASON };
-  if (input.kind) filter.kind = input.kind;
+  const filter: Document = episodeFilter(input.kind);
   if (input.language && input.language !== "All") filter.language = input.language;
   // Escape search metacharacters and bound the search length.
   if (input.search?.trim()) filter.title = { $regex: input.search.trim().slice(0, 80).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
@@ -69,16 +68,17 @@ export async function findMovies(input: MovieQuery = {}) {
 
 export async function findMovie(id: string): Promise<Movie | null> {
   if (!ObjectId.isValid(id) || id.length !== 24) return null;
-  const doc = await (await getMovieCollection()).findOne({ _id: new ObjectId(id), season: SEASON });
+  const doc = await (await getMovieCollection()).findOne({ ...episodeFilter(), _id: new ObjectId(id) });
   return doc ? normalize(doc) : null;
 }
 
 export async function getRawMovie(id: string): Promise<Document | null> {
   if (!ObjectId.isValid(id) || id.length !== 24) return null;
-  return (await getMovieCollection()).findOne({ _id: new ObjectId(id), season: SEASON });
+  return (await getMovieCollection()).findOne({ ...episodeFilter(), _id: new ObjectId(id) });
 }
 
 export async function listLanguages(): Promise<string[]> {
-  const langs = await (await getMovieCollection()).distinct("language", { season: SEASON });
+  const langs = await (await getMovieCollection()).distinct("language", episodeFilter());
   return langs.filter((x): x is string => typeof x === "string" && Boolean(x.trim())).sort((a, b) => a.localeCompare(b));
 }
+

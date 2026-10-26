@@ -1,14 +1,16 @@
 import { ObjectId } from "mongodb";
 import { getMovieCollection } from "@/lib/mongodb";
+import { episodeFilter } from "@/lib/episode-meta.mjs";
 export const runtime = "nodejs";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     if (!ObjectId.isValid(id) || id.length !== 24) return new Response(null, { status: 400 });
-    const result = await (await getMovieCollection()).updateOne({ _id: new ObjectId(id), season: 10 }, { $inc: { views: 1 } });
+    const result = await (await getMovieCollection()).updateOne({ ...episodeFilter(), _id: new ObjectId(id) }, { $inc: { views: 1 } });
     return new Response(null, { status: result.matchedCount ? 204 : 404, headers: { "Cache-Control": "no-store" } });
   } catch {
     return new Response(null, { status: 503 });
   }
 }
+
