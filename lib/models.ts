@@ -12,9 +12,14 @@ export type MovieFile = {
 export type Movie = {
   id: string;
   title: string;
+  year: number;
+  genres: string[];
+  rating: number;
+  poster_url: string;
+  backdrop_url: string;
   season: number;
   day: number;
-  kind: "episode" | "promo" | "highlight";
+  kind: "movie" | "episode" | "promo" | "highlight";
   caption: string;
   duration_seconds: number;
   language: string;

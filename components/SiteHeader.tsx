@@ -1,10 +1,5 @@
-"use client";
 import Link from "next/link";
-import { Clapperboard, Search, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { Search } from "lucide-react";
 export default function SiteHeader() {
-  const [menu, setMenu] = useState(false);
-  const [search, setSearch] = useState(false);
-  return <header className="bb-header"><div className="shell bb-header-inner"><Link href="/" className="brand" aria-label="Dude Bigg Boss Tamil home"><span className="brand-symbol"><Clapperboard size={25}/></span><span>DUDE<span className="brand-accent">.</span></span></Link><nav className="bb-desktop-nav" aria-label="Main navigation"><Link href="/#episodes">Episodes</Link><Link href="/#latest">Latest episode</Link><span>Season 10</span></nav><div className="bb-header-actions"><button aria-label={search ? 'Close search' : 'Search episodes'} aria-expanded={search} aria-controls="episode-search" onClick={() => setSearch(!search)}>{search ? <X/> : <Search/>}</button><button aria-label={menu ? 'Close menu' : 'Open menu'} aria-expanded={menu} aria-controls="bb-menu" onClick={() => setMenu(!menu)}>{menu ? <X/> : <Menu/>}</button></div></div>{search && <form id="episode-search" className="shell bb-search" action="/" role="search"><label htmlFor="episode-query">Find an episode or clip</label><div><input id="episode-query" autoFocus name="search" placeholder="Search by title…" maxLength={80}/><button className="btn btn-primary" type="submit">Search</button></div></form>}{menu && <nav className="shell bb-menu" id="bb-menu" aria-label="Episode menu"><Link href="/#episodes" onClick={() => setMenu(false)}>Episodes</Link><Link href="/#latest" onClick={() => setMenu(false)}>Latest episode</Link></nav>}</header>;
+  return <header className="cinema-header"><div className="shell cinema-nav"><Link href="/" className="cinema-brand" aria-label="DUDE Hollywood home">DUDE<span>HOLLYWOOD</span></Link><nav aria-label="Main navigation"><Link href="/#movies">Discover</Link><Link href="/?sort=latest#movies">New arrivals</Link><Link href="/?sort=popular#movies">Most watched</Link></nav><form action="/" role="search" className="cinema-search"><Search size={17}/><input name="search" aria-label="Search movies" placeholder="Find your next movie" maxLength={80}/><button type="submit">Search</button></form></div></header>;
 }
-

@@ -9,7 +9,8 @@ declare global {
 export async function getDatabase(): Promise<Db> {
   const uri = process.env.MONGODB_URI;
   if (!uri) throw new Error("MONGODB_URI is missing. Set it in your environment variables.");
-  const dbName = process.env.MONGODB_DB;
+  const dbName = process.env.MONGODB_DB?.trim() || "hollywood_movies";
+  if (["moviebot", "biggboss", "biggboss_episodes"].includes(dbName.toLowerCase())) throw new Error("Hollywood requires a separate database");
   if (!dbName) throw new Error("MONGODB_DB is missing. Set it in your environment variables.");
 
   if (!global._dudeMongoClient) {
@@ -24,6 +25,6 @@ export async function getDatabase(): Promise<Db> {
 
 export async function getMovieCollection() {
   const db = await getDatabase();
-  return db.collection(process.env.BIGGBOSS_COLLECTION?.trim() || "biggboss_episodes");
+  return db.collection("movies");
 }
 

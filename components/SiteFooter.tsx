@@ -1,2 +1,2 @@
 import Link from "next/link";
-export default function SiteFooter() { return <footer className="bb-footer shell"><Link className="brand" href="/">DUDE<span className="brand-accent">.</span></Link><p>Bigg Boss Tamil · Season 10</p><a href="/#episodes">Back to episodes ↑</a></footer>; }
+export default function SiteFooter() { return <footer className="shell cinema-footer"><Link href="/" className="cinema-brand">DUDE<span>HOLLYWOOD</span></Link><p>A screen for every story.</p><p className="attribution">Movie metadata and artwork from <a href="https://www.themoviedb.org/" rel="noreferrer">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="#movies">Back to movies ↑</a></footer>; }

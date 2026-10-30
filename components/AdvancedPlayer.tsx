@@ -72,7 +72,7 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
         element.className = "dude-movi-player";
         element.setAttribute("controls", "");
         element.setAttribute("playsinline", "");
-        element.setAttribute("poster", "/images/biggboss-season-10.webp");
+        element.setAttribute("poster", movie.backdrop_url || movie.poster_url || "/images/hollywood-fallback.svg");
         element.setAttribute("posterfit", "contain");
         element.setAttribute("posterdelay", "0");
         element.setAttribute("autoplay", "");
@@ -120,9 +120,9 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
     };
   }, [movie.id, movie.title, fileIndex, file, attempt]);
 
-  return <div className="player-shell dude-player-shell" aria-label="Episode video player">
+  return <div className="player-shell dude-player-shell" aria-label="Movie video player">
     <div className="dude-player-stage">
-      {loading && <img className="bb-player-preview" src="/images/biggboss-season-10.webp" alt="Bigg Boss Tamil Season 10 video preview" width={1536} height={864}/>}
+      {loading && <img className="bb-player-preview" src={movie.backdrop_url || movie.poster_url || "/images/hollywood-fallback.svg"} alt="Movie video preview" width={1536} height={864}/>}
       <div ref={host} className="dude-player-host" />
       {loading && !error ? <div className="player-overlay" role="status"><LoaderCircle className="spin" size={28}/><span>Loading player and secure streaming link…</span></div> : null}
       {error ? <div className="player-error" role="alert"><AlertTriangle size={30}/><strong>Playback unavailable</strong><span>{error}</span><div className="error-actions"><button className="btn btn-primary" onClick={() => setAttempt(value => value + 1)}><RefreshCw size={16}/> Retry</button>{file && <a className="btn btn-outline" href={`/api/download/${movie.id}/${fileIndex}`} target="_blank" rel="noopener noreferrer"><Download size={16}/> Download file</a>}</div></div> : null}

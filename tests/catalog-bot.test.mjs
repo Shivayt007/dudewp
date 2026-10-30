@@ -10,20 +10,21 @@ import * as metadata from '../lib/episode-meta.mjs';
 const require = createRequire(import.meta.url);
 const id = index => String(index).padStart(24, '0');
 const files = ['480p', '720p', '1080p'].map(quality => ({ quality, file_name: `episode-${quality}.mp4`, file_size: 1000 }));
-const legacy = { _id: id(1), content_type: 'biggboss', show: 'Bigg Boss Tamil', title: 'Bigg Boss Tamil — Day 21', caption: 'Forwarded caption', files, language: 'Tamil' };
-const modern = { ...legacy, _id: id(2), season: 10, kind: 'episode', day: 22 };
-const promo = { ...modern, _id: id(3), kind: 'promo' };
-const wrongSeason = { ...legacy, _id: id(4), season: 9 };
-const unrelated = { _id: id(5), title: 'A movie', files, language: 'English' };
+const legacy = { _id: id(1), content_type: 'hollywood', published: true, title: 'The Matrix', year: 1999, genres: ['Action', 'Science Fiction'], poster_url: 'https://image.tmdb.org/t/p/w500/poster.jpg', backdrop_url: 'https://image.tmdb.org/t/p/original/backdrop.jpg', files, language: 'English' };
+const modern = { ...legacy, _id: id(2), title: 'Interstellar', year: 2014 };
+const promo = { ...legacy, _id: id(3), title: 'Arrival', year: 2016, genres: ['Drama'] };
+const wrongSeason = { ...legacy, _id: id(4), content_type: 'biggboss' };
+const unrelated = { ...legacy, _id: id(5), published: false };
 const fixtures = [legacy, modern, promo, wrongSeason, unrelated];
 
 function matches(doc, query) {
   return Object.entries(query).every(([key, value]) => {
     if (key === '$or') return value.some(condition => matches(doc, condition));
     if (key === '$and') return value.every(condition => matches(doc, condition));
-    if (value && typeof value === 'object' && '$exists' in value) return Object.hasOwn(doc, key) === value.$exists;
+    const actual = key.split('.').reduce((obj, part) => obj?.[part], doc);
+    if (value && typeof value === 'object' && '$exists' in value) return (actual !== undefined) === value.$exists;
     if (value && typeof value === 'object' && '$regex' in value) return new RegExp(value.$regex, value.$options).test(doc[key] || '');
-    return String(doc[key]) === String(value);
+    return Array.isArray(actual) ? actual.includes(value) : String(actual) === String(value);
   });
 }
 
@@ -61,20 +62,21 @@ const catalog = await loadTs('../lib/movies.ts');
 const all = await catalog.findMovies();
 assert.equal(all.count, 3);
 assert.deepEqual(all.movies.map(doc => doc.id), [id(1), id(2), id(3)]);
-const episodes = await catalog.findMovies({ kind: 'episode' });
-assert.equal(episodes.count, 2);
-assert.equal(episodes.movies[0].day, 21);
+const episodes = await catalog.findMovies({ search: 'Matrix' });
+assert.equal(episodes.count, 1);
+assert.equal(episodes.movies[0].year, 1999);
 assert.equal(episodes.movies[0].title, legacy.title);
-assert.equal(episodes.movies[0].caption, legacy.caption);
+assert.equal(episodes.movies[0].backdrop_url, legacy.backdrop_url);
 assert.deepEqual(episodes.movies[0].files.map(file => file.quality), ['480p', '720p', '1080p']);
-assert.equal((await catalog.findMovies({ kind: 'promo' })).count, 1);
-assert.equal((await catalog.findMovies({ search: 'Day 21', kind: 'episode' })).count, 2);
+assert.equal((await catalog.findMovies({ genre: 'Drama' })).count, 1);
+assert.equal((await catalog.findMovies({ year: 2014 })).count, 1);
+assert.equal((await catalog.findMovies({ search: '.*' })).count, 0);
 assert.equal((await catalog.findMovie(id(1))).files.length, 3);
 assert.equal((await catalog.getRawMovie(id(1))).files[2].quality, '1080p');
 assert.equal(await catalog.findMovie(id(4)), null);
 assert.equal(await catalog.getRawMovie(id(5)), null);
 assert.equal(await catalog.findMovie('bad-id'), null);
-assert.deepEqual(await catalog.listLanguages(), ['Tamil']);
+assert.deepEqual(await catalog.listLanguages(), ['English']);
 const views = await loadTs('../app/api/views/[id]/route.ts');
 for (const [index, status] of [[1, 204], [2, 204], [4, 404], [5, 404]]) {
   assert.equal((await views.POST(new Request('http://localhost'), { params: Promise.resolve({ id: id(index) }) })).status, status);
@@ -82,4 +84,4 @@ for (const [index, status] of [[1, 204], [2, 204], [4, 404], [5, 404]]) {
 assert.equal(metadata.episodeDay({ title: 'தமிழ் நாள் 23' }), 23);
 assert.equal(metadata.episodeDay({ title: 'Day 21', day: 25 }), 25);
 assert.equal(metadata.episodeDay({ title: 'Day 999' }), 0);
-console.log('Bot catalog compatibility: legacy/new uploads, qualities, kind/search filters, detail/raw/media lookup, season isolation and view scope passed.');
+console.log('Hollywood catalog: grouped qualities, title/year/genre filters, published-only access, Bigg Boss exclusion, posters and view scope passed.');
