@@ -1,2 +1,8 @@
 import Link from "next/link";
-export default function SiteFooter() { return <footer className="shell cinema-footer"><Link href="/" className="cinema-brand">DUDE<span>HOLLYWOOD</span></Link><p>A screen for every story.</p><p className="attribution">Movie metadata and artwork from <a href="https://www.themoviedb.org/" rel="noreferrer">TMDB</a>. This product uses the TMDB API but is not endorsed or certified by TMDB.</p><a href="#movies">Back to movies ↑</a></footer>; }
+
+export default function SiteFooter() {
+  return <footer className="cinema-footer"><div className="shell footer-grid">
+    <Link href="/" className="cinema-brand"><strong>DUDE</strong><span>HOLLYWOOD</span></Link>
+    <p>Movie metadata and artwork provided by <a href="https://www.themoviedb.org/" rel="noreferrer">TMDB</a>. DUDE Hollywood is not endorsed or certified by TMDB.</p>
+  </div></footer>;
+}

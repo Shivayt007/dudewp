@@ -1,6 +1,8 @@
 export type MovieFile = {
   index: number;
   quality: string;
+  language: string;
+  codec: string;
   file_name: string;
   display_name: string;
   file_size: number;
@@ -9,8 +11,11 @@ export type MovieFile = {
   playableHint: "native" | "manifest" | "unknown";
 };
 
+export type CastMember = { id: number; name: string; character: string; profile_url: string };
+
 export type Movie = {
   id: string;
+  tmdb_id: number;
   title: string;
   year: number;
   genres: string[];
@@ -29,6 +34,7 @@ export type Movie = {
   file_count: number;
   hasPoster: boolean;
   files: MovieFile[];
+  cast: CastMember[];
 };
 
 export type CatalogMovie = Omit<Movie, "files"> & { files: MovieFile[] };

@@ -52,6 +52,7 @@ async function loadTs(relative) {
     if (specifier === './mongodb' || specifier === '@/lib/mongodb') return { getMovieCollection: async () => collection };
     if (specifier.endsWith('episode-meta.mjs')) return metadata;
     if (specifier === './models') return { qualityLabel: metadata.qualityLabel, formatSize: () => '1000 B', fileFormat: () => 'native' };
+    if (specifier === './tmdb') return { enrichMovie: async movie => movie };
     return require(specifier);
   };
   module._compile(compiled.outputText, filename);
