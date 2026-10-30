@@ -12,7 +12,7 @@ export default function MobileDock() {
     { id: "home", href: "/", label: "Home", icon: Home },
     { id: "search", href: "/#catalog-search", label: "Search", icon: Search },
     { id: "new", href: "/?sort=latest#movies", label: "New", icon: Sparkles },
-    { id: "library", href: "/#movies", label: "Library", icon: Bookmark },
+    { id: "library", href: "/#library", label: "Library", icon: Bookmark },
   ];
   return <nav className="mobile-dock" aria-label="Mobile navigation">{items.map(item => {
     const Icon = item.icon;
