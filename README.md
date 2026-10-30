@@ -5,7 +5,8 @@ Uses the separate `hollywood_movies.movies` collection and only displays
 published Hollywood records with uploaded files.
 
 - Latest movie backdrop automatically becomes the homepage banner.
-- Movie posters, synopsis, genres, rating and runtime from matched TMDB metadata.
+- Manual Telegram posters, also used as the banner and video preview.
+- No TMDB requests or token requirement. Existing saved metadata is preserved.
 - Search, genre/year filters, sorting and pagination.
 - Movie detail pages and the existing Movi player with quality selection,
   fresh signed file URLs, seeking and range relay.

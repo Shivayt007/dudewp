@@ -133,8 +133,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (diagnostic) return Response.json({ status: "movie-not-found" }, { status: 404, headers: jsonHeaders });
       return new Response(null, { status: 404, headers: { "Cache-Control": "no-store", "X-Poster-Status": "movie-not-found" } });
     }
-    if (typeof movie.poster_url === "string" && /^https:\/\/image\.tmdb\.org\/t\/p\//.test(movie.poster_url)) return Response.redirect(movie.poster_url, 302);
-    const fileId = thumbnailFileId(movie);
+    const fileId = movie.poster_source === "manual" ? String(movie.poster_file_id || "") : thumbnailFileId(movie);
     const image = await fromTelegram(fileId, attempts) || await fromLegacy(movie, attempts);
     if (diagnostic) {
       return Response.json({

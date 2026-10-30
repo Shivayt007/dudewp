@@ -52,7 +52,6 @@ async function loadTs(relative) {
     if (specifier === './mongodb' || specifier === '@/lib/mongodb') return { getMovieCollection: async () => collection };
     if (specifier.endsWith('episode-meta.mjs')) return metadata;
     if (specifier === './models') return { qualityLabel: metadata.qualityLabel, formatSize: () => '1000 B', fileFormat: () => 'native' };
-    if (specifier === './tmdb') return { enrichMovie: async movie => movie };
     return require(specifier);
   };
   module._compile(compiled.outputText, filename);
@@ -77,6 +76,13 @@ assert.equal((await catalog.getRawMovie(id(1))).files[2].quality, '1080p');
 assert.equal(await catalog.findMovie(id(4)), null);
 assert.equal(await catalog.getRawMovie(id(5)), null);
 assert.equal(await catalog.findMovie('bad-id'), null);
+legacy.poster_file_id = 'manual-photo';
+legacy.poster_file_unique_id = 'manual-unique';
+const manual = await catalog.findMovie(id(1));
+assert.equal(manual.poster_url, '/api/poster/' + id(1) + '?v=manual-unique');
+assert.equal(manual.backdrop_url, manual.poster_url);
+delete legacy.poster_file_id;
+delete legacy.poster_file_unique_id;
 assert.deepEqual(await catalog.listLanguages(), ['English']);
 const views = await loadTs('../app/api/views/[id]/route.ts');
 for (const [index, status] of [[1, 204], [2, 204], [4, 404], [5, 404]]) {

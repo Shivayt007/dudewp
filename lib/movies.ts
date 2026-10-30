@@ -3,7 +3,6 @@ import { ObjectId, type Document, type Sort } from "mongodb";
 import { getMovieCollection } from "./mongodb";
 import { fileFormat, formatSize, type Movie, type MovieFile } from "./models";
 import { qualityLabel, thumbnailFileId } from "./episode-meta.mjs";
-import { enrichMovie } from "./tmdb";
 
 export const hollywoodFilter = { content_type: "hollywood", published: true, "files.0": { $exists: true } };
 
@@ -25,7 +24,9 @@ function normalize(raw: Document): Movie {
   return {
     id: String(raw._id), tmdb_id: Number(raw.tmdb_id) || 0, title: String(raw.title || "Untitled movie"),
     year: Number(raw.year) || 0, genres: Array.isArray(raw.genres) ? raw.genres.map(String) : [],
-    rating: Number(raw.rating) || 0, poster_url: safeImage(raw.poster_url), backdrop_url: safeImage(raw.backdrop_url),
+    rating: Number(raw.rating) || 0,
+    poster_url: raw.poster_file_id ? "/api/poster/" + String(raw._id) + "?v=" + encodeURIComponent(String(raw.poster_file_unique_id || "")) : safeImage(raw.poster_url),
+    backdrop_url: raw.poster_file_id ? "/api/poster/" + String(raw._id) + "?v=" + encodeURIComponent(String(raw.poster_file_unique_id || "")) : safeImage(raw.backdrop_url),
     season: 0, day: 0, kind: "movie", caption: String(raw.caption || ""),
     duration_seconds: Math.max(0, Number(raw.duration_seconds) || 0), language: String(raw.language || "Unknown"),
     description: String(raw.description || ""), uploaded_at: raw.uploaded_at instanceof Date ? raw.uploaded_at.toISOString() : raw.uploaded_at ? String(raw.uploaded_at) : null,
@@ -54,13 +55,13 @@ export async function findMovies(input: MovieQuery = {}) {
     collection.countDocuments(filter),
   ]);
   const normalized = results.map(normalize);
-  const movies = await Promise.all(normalized.map(movie => movie.poster_url && movie.backdrop_url ? movie : enrichMovie(movie)));
+  const movies = normalized;
   return { movies, count, page, limit, totalPages: Math.ceil(count / limit) };
 }
 
 export async function findMovie(id: string): Promise<Movie | null> {
   const raw = await getRawMovie(id);
-  return raw ? enrichMovie(normalize(raw)) : null;
+  return raw ? normalize(raw) : null;
 }
 
 export async function getRawMovie(id: string): Promise<Document | null> {
@@ -74,7 +75,7 @@ export async function findRelatedMovies(movie: Movie, limit = 12): Promise<Movie
   const collection = await getMovieCollection();
   let rows = await collection.find(filter).sort({ views: -1, uploaded_at: -1 }).limit(limit).toArray();
   if (!rows.length && movie.genres.length) rows = await collection.find({ ...hollywoodFilter, _id: { $ne: new ObjectId(movie.id) } }).sort({ uploaded_at: -1 }).limit(limit).toArray();
-  return Promise.all(rows.map(normalize).map(item => item.poster_url ? item : enrichMovie(item)));
+  return rows.map(normalize);
 }
 
 export async function listLanguages(): Promise<string[]> {
