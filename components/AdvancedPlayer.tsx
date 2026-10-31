@@ -133,9 +133,10 @@ export default function AdvancedPlayer({ movie, initialIndex = 0 }: { movie: Mov
           {movie.files.map(item => <option key={item.index} value={item.index}>{item.display_name}{item.file_size_readable ? ` · ${item.file_size_readable}` : ""}</option>)}
         </select>
       </label>
-      <div className="dude-player-actions"><button className="inline-action" onClick={() => setAttempt(value => value + 1)}><RefreshCw size={16}/> Refresh link</button>{file && <a className="inline-action" href={`/api/download/${movie.id}/${fileIndex}`} target="_blank" rel="noopener noreferrer"><Download size={16}/> Download</a>}</div>
+      <div className="dude-player-actions">
+        {file && <a className="dude-download-button" href={`/api/download/${movie.id}/${fileIndex}`} target="_blank" rel="noopener noreferrer"><Download size={19} aria-hidden="true"/> Download</a>}
+        <button type="button" className="dude-refresh-button" onClick={() => setAttempt(value => value + 1)}><RefreshCw size={17} aria-hidden="true"/> Refresh link</button>
+      </div>
     </div>
-    <p className="dude-player-help">Choose audio and subtitles in the player’s settings. You can also add a subtitle file.</p>
   </div>;
 }
-
