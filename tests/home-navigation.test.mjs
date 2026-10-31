@@ -30,16 +30,21 @@ const movie = {
   files: [{ quality: "720p", language: "Tamil+English" }], language: "Tamil", duration_seconds: 7200,
   poster_url: "", backdrop_url: "", description: "A test fixture.", views: 1,
 };
-const markup = renderToStaticMarkup(React.createElement(HomeCinema, {
-  catalog: { movies: [movie], count: 1, totalPages: 1 }, recent: [movie], popular: [movie],
-  filters: { genres: ["Thriller"], years: [2026] },
-  query: { search: "", genre: "", year: 0, sort: "latest", page: 1 },
-}));
+const props = { catalog: { movies: [movie], count: 1, page: 1, totalPages: 1 } };
+const markup = renderToStaticMarkup(React.createElement(HomeCinema, props));
 assert.ok(markup.includes('href="/watch/' + movie.id + '"'));
 assert.ok(!markup.includes('href="/movie/'), "No intermediate detail links on homepage");
-assert.ok(markup.includes("New arrivals") && markup.includes("Explore all movies"));
-assert.ok(markup.includes("Tamil") && markup.includes("English"));
-assert.ok(!markup.includes("Continue watching"), "No invented playback history");
-const card = renderToStaticMarkup(React.createElement(MovieCard, { movie, rank: 1 }));
+assert.ok(markup.includes("All movies") && markup.includes("1 movie"));
+assert.equal((markup.match(/<article/g) || []).length, 1, "Each movie appears once");
+for (const removed of ["New arrivals", "Most watched", "Explore all movies", "Continue watching", "Browse by language", "<select"]) {
+  assert.ok(!markup.includes(removed), removed + " removed from the catalog");
+}
+const card = renderToStaticMarkup(React.createElement(MovieCard, { movie }));
 assert.equal((card.match(/href="\/watch\//g) || []).length, 2, "Poster and title both open player");
-console.log("Homepage rendering passed: direct player links, real language filters, no fabricated history.");
+const searched = renderToStaticMarkup(React.createElement(HomeCinema, { search: "A & B", catalog: { movies: [movie], count: 49, page: 2, totalPages: 3 } }));
+assert.ok(searched.includes("Search results"));
+assert.ok(searched.includes("search=A+%26+B&amp;page=3"), "Pagination preserves the escaped search");
+assert.ok(searched.includes("Page 2 of 3"));
+const empty = renderToStaticMarkup(React.createElement(HomeCinema, { search: "Missing", catalog: { movies: [], count: 0, page: 1, totalPages: 0 } }));
+assert.ok(empty.includes("No matching movies") && empty.includes("View all movies"));
+console.log("Homepage rendering passed: single catalog, direct player links, search pagination and empty state.");
